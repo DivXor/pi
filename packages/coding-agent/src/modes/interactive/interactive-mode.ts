@@ -993,6 +993,7 @@ export class InteractiveMode {
 
 		// Set up theme file watcher
 		onThemeChange(() => {
+			this.ui.setBackgroundAnsi(theme.getBackgroundAnsi());
 			this.ui.invalidate();
 			this.updateEditorBorderColor();
 			this.ui.requestRender();

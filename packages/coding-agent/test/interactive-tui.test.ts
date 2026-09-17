@@ -49,6 +49,7 @@ class RecordingTerminal extends VirtualTerminal implements Terminal {
 
 describe("createInteractiveTui", () => {
 	it("selects the alternate-screen renderer only when requested", async () => {
+		initTheme("dark");
 		const mainTerminal = new RecordingTerminal();
 		const mainTui = createInteractiveTui({
 			tuiMode: "regular",

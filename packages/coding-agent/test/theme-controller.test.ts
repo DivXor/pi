@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { TUI } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsManager } from "../src/core/settings-manager.ts";
@@ -8,11 +11,13 @@ function createUi() {
 	const queryTerminalBackgroundColor = vi.fn();
 	const queryTerminalColorScheme = vi.fn();
 	const setTerminalColorSchemeNotifications = vi.fn();
+	const setBackgroundAnsi = vi.fn();
 	let terminalColorSchemeListener: ((terminalTheme: TerminalTheme) => void) | undefined;
 	const unsubscribeTerminalColorScheme = vi.fn();
 	const ui = {
 		invalidate: vi.fn(),
 		requestRender: vi.fn(),
+		setBackgroundAnsi,
 		setTerminalColorSchemeNotifications,
 		onTerminalColorSchemeChange: vi.fn((listener: (terminalTheme: TerminalTheme) => void) => {
 			terminalColorSchemeListener = listener;
@@ -27,6 +32,7 @@ function createUi() {
 		queryTerminalColorScheme,
 		setTerminalColorSchemeNotifications,
 		unsubscribeTerminalColorScheme,
+		setBackgroundAnsi,
 		emitTerminalColorScheme: (terminalTheme: TerminalTheme) => terminalColorSchemeListener?.(terminalTheme),
 	};
 }
@@ -137,5 +143,43 @@ describe("InteractiveThemeController", () => {
 		manager = secondManager;
 		await controller.applyFromSettings();
 		expect(theme.name).toBe("dark");
+	});
+
+	it("pushes the theme app background to the renderer on every theme change", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "pi-theme-controller-bg-"));
+		const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+		process.env.PI_CODING_AGENT_DIR = join(tempRoot, "agent");
+		mkdirSync(join(process.env.PI_CODING_AGENT_DIR, "themes"), { recursive: true });
+		try {
+			const darkTheme = JSON.parse(
+				readFileSync(new URL("../src/modes/interactive/theme/dark.json", import.meta.url), "utf-8"),
+			) as { vars?: Record<string, string | number> } & { colors: Record<string, string | number> };
+			const customTheme = {
+				...darkTheme,
+				name: "custom-app-bg",
+				colors: { ...darkTheme.colors, appBg: "#000000" },
+			};
+			writeFileSync(
+				join(process.env.PI_CODING_AGENT_DIR!, "themes", "custom-app-bg.json"),
+				JSON.stringify(customTheme),
+			);
+
+			const { ui, setBackgroundAnsi } = createUi();
+			const manager = SettingsManager.inMemory({ theme: "dark" });
+			const controller = createController(ui, () => manager, "custom-app-bg");
+			await controller.applyFromSettings();
+
+			expect(setBackgroundAnsi).toHaveBeenCalledWith("\x1b[48;2;0;0;0m");
+
+			expect(controller.setThemeName("dark")).toEqual({ success: true });
+			expect(setBackgroundAnsi).toHaveBeenLastCalledWith(undefined);
+		} finally {
+			if (previousAgentDir === undefined) {
+				delete process.env.PI_CODING_AGENT_DIR;
+			} else {
+				process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+			}
+			rmSync(tempRoot, { recursive: true, force: true });
+		}
 	});
 });

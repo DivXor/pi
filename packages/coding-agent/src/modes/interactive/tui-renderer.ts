@@ -34,6 +34,7 @@ export function createInteractiveTui(options: InteractiveTuiOptions): TuiMainScr
 			openUrl: openBrowser,
 			onRightClickPaste: options.onRightClickPaste,
 			copyOnSelect: options.fullscreenCopyOnSelect,
+			backgroundAnsi: theme.getBackgroundAnsi(),
 			copySelection: async (text) => {
 				try {
 					await copyToClipboard(text);
@@ -44,7 +45,9 @@ export function createInteractiveTui(options: InteractiveTuiOptions): TuiMainScr
 			},
 		});
 	}
-	return new TuiMainScreen(terminal, options.showHardwareCursor, options.logDirectory);
+	return new TuiMainScreen(terminal, options.showHardwareCursor, options.logDirectory, {
+		backgroundAnsi: theme.getBackgroundAnsi(),
+	});
 }
 
 /** Stable reference for components while InteractiveMode replaces the active renderer. */
