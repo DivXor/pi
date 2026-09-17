@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added optional theme background support to the TUI renderers: `TuiAltScreen` and `TuiMainScreen` accept a `backgroundAnsi` option and expose `setBackgroundAnsi()`, emitting the SGR before screen and line erases so BCE-capable terminals paint erased cells with the theme background.
+
 ### Fixed
 
 - Fixed fullscreen clipboard failures hiding actionable backend error messages behind a generic notice, and extended failure notices to five seconds ([#9618](https://github.com/earendil-works/pi/issues/9618)).

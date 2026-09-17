@@ -441,6 +441,7 @@ export interface TUI extends Component {
 	hasOverlay(): boolean;
 	start(): void;
 	stop(options?: TuiStopOptions): void;
+	setBackgroundAnsi(ansi: string | undefined): void;
 	renderNow(force?: boolean): void;
 	requestRender(force?: boolean): void;
 	addInputListener(listener: TuiInputListener): () => void;
@@ -479,6 +480,12 @@ export abstract class TuiBase extends Container implements TUI {
 	private clearOnShrink = false;
 	protected fullRedrawCount = 0;
 	protected stopped = false;
+	/**
+	 * SGR sequence emitted before screen and line erases (ED/EL) so erased cells use the theme background.
+	 * Terminals implementing BCE (background color erase) fill erased cells with this color.
+	 * Undefined keeps the terminal default background.
+	 */
+	protected backgroundAnsi: string | undefined;
 	private pendingOsc11BackgroundReplies = 0;
 	private pendingOsc11BackgroundQueries: PendingOsc11BackgroundQuery[] = [];
 	private terminalColorSchemeListeners = new Set<(scheme: TerminalColorScheme) => void>();
@@ -536,6 +543,12 @@ export abstract class TuiBase extends Container implements TUI {
 
 	getClearOnShrink(): boolean {
 		return this.clearOnShrink;
+	}
+
+	setBackgroundAnsi(ansi: string | undefined): void {
+		if (this.backgroundAnsi === ansi) return;
+		this.backgroundAnsi = ansi;
+		this.requestRender();
 	}
 
 	/**
@@ -1352,10 +1365,18 @@ export abstract class TuiBase extends Container implements TUI {
 
 	protected applyLineResets(lines: string[]): string[] {
 		const reset = SEGMENT_RESET;
+		const background = this.backgroundAnsi;
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (!isImageLine(line)) {
-				lines[i] = normalizeTerminalOutput(line) + reset;
+				let content = normalizeTerminalOutput(line);
+				if (background) {
+					// Components emit full SGR resets mid-line (fake cursors, chalk styles). Re-assert the
+					// theme background after each reset so trailing cells do not fall back to the terminal
+					// default and overwrite the erased color.
+					content = content.replaceAll("\x1b[0m", `\x1b[0m${background}`);
+				}
+				lines[i] = content + reset;
 			}
 		}
 		return lines;

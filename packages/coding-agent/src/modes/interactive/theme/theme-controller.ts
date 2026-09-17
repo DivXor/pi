@@ -11,6 +11,7 @@ import {
 	setThemeInstance,
 	type TerminalTheme,
 	type Theme,
+	theme,
 } from "./theme.ts";
 
 type ThemeResult = { success: boolean; error?: string };
@@ -140,6 +141,7 @@ export class InteractiveThemeController {
 	}
 
 	private notifyChanged(): void {
+		this.ui.setBackgroundAnsi(theme.getBackgroundAnsi());
 		this.ui.invalidate();
 		this.onChanged();
 	}

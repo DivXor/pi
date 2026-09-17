@@ -133,6 +133,10 @@
 					"$ref": "#/$defs/colorValue",
 					"description": "Thinking block text color"
 				},
+				"appBg": {
+					"$ref": "#/$defs/colorValue",
+					"description": "Global TUI background (falls back to the terminal default when omitted)"
+				},
 				"selectedBg": {
 					"$ref": "#/$defs/colorValue",
 					"description": "Selected item background"

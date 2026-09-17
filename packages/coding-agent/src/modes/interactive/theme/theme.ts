@@ -90,6 +90,7 @@ export type ThemeColor =
 	| "bashMode";
 
 export type ThemeBg =
+	| "appBg"
 	| "selectedBg"
 	| "searchMatchBg"
 	| "userMessageBg"
@@ -99,7 +100,7 @@ export type ThemeBg =
 	| "toolErrorBg";
 
 type OptionalThemeColor = "scrollbarTrack" | "scrollbarThumb" | "thinkingMax" | "searchMatchText";
-type OptionalThemeBg = "searchMatchBg";
+type OptionalThemeBg = "searchMatchBg" | "appBg";
 
 type ColorMode = "truecolor" | "256color";
 
@@ -259,6 +260,7 @@ function resolveThemeColors<T extends Record<string, ColorValue>>(
 }
 
 function withThemeColorFallbacks(colors: ThemeJson["colors"]): ThemeJson["colors"] & {
+	appBg: ColorValue;
 	scrollbarTrack: ColorValue;
 	scrollbarThumb: ColorValue;
 	thinkingMax: ColorValue;
@@ -267,6 +269,7 @@ function withThemeColorFallbacks(colors: ThemeJson["colors"]): ThemeJson["colors
 } {
 	return {
 		...colors,
+		appBg: colors.appBg ?? "",
 		scrollbarTrack: colors.scrollbarTrack ?? colors.muted,
 		scrollbarThumb: colors.scrollbarThumb ?? colors.text,
 		thinkingMax: colors.thinkingMax ?? colors.thinkingXhigh,
@@ -314,6 +317,7 @@ export class Theme {
 		const backgrounds = {
 			...bgColors,
 			searchMatchBg: bgColors.searchMatchBg ?? bgColors.selectedBg,
+			appBg: bgColors.appBg ?? "",
 		};
 		for (const [key, value] of Object.entries(backgrounds) as [ThemeBg, string | number][]) {
 			this.bgColors.set(key, bgAnsi(value, mode));
@@ -362,6 +366,14 @@ export class Theme {
 		const ansi = this.bgColors.get(color);
 		if (!ansi) throw new Error(`Unknown theme background color: ${color}`);
 		return ansi;
+	}
+
+	/**
+	 * ANSI SGR for the global app background, or undefined when the theme uses the terminal default.
+	 */
+	getBackgroundAnsi(): string | undefined {
+		const ansi = this.bgColors.get("appBg");
+		return ansi === undefined || ansi === "\x1b[49m" ? undefined : ansi;
 	}
 
 	getColorMode(): ColorMode {
@@ -531,6 +543,7 @@ function createTheme(themeJson: ThemeJson, mode?: ColorMode, sourcePath?: string
 	const fgColors: Record<ThemeColor, string | number> = {} as Record<ThemeColor, string | number>;
 	const bgColors: Record<ThemeBg, string | number> = {} as Record<ThemeBg, string | number>;
 	const bgColorKeys: Set<string> = new Set([
+		"appBg",
 		"selectedBg",
 		"searchMatchBg",
 		"userMessageBg",

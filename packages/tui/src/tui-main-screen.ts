@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import type { Terminal } from "./terminal.ts";
 import { deleteKittyImage, isImageLine } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
 import { visibleWidth } from "./utils.ts";
@@ -120,6 +121,12 @@ export interface TuiMainScreenRenderState {
 	previousViewportTop: number;
 }
 
+/** Options for the main-screen TUI. */
+export interface TuiMainScreenOptions {
+	/** Initial theme background SGR emitted before screen and line erases. Undefined keeps the terminal default. */
+	backgroundAnsi?: string;
+}
+
 /** TUI implementation that renders into the terminal's main screen and scrollback. */
 export class TuiMainScreen extends TuiBase implements TUI {
 	readonly mode = "regular" as const;
@@ -131,6 +138,25 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	private hardwareCursorRow = 0;
 	private maxLinesRendered = 0;
 	private previousViewportTop = 0;
+	/** Repaint every viewport row once after a background change, even unchanged ones. */
+	private forceViewportRepaint = false;
+
+	constructor(
+		terminal: Terminal,
+		showHardwareCursor?: boolean,
+		logDirectory?: string,
+		options: TuiMainScreenOptions = {},
+	) {
+		super(terminal, showHardwareCursor, logDirectory);
+		this.backgroundAnsi = options.backgroundAnsi;
+	}
+
+	override setBackgroundAnsi(ansi: string | undefined): void {
+		if (this.backgroundAnsi === ansi) return;
+		super.setBackgroundAnsi(ansi);
+		// Unchanged rows would otherwise keep the old background forever in the scrollback UI.
+		this.forceViewportRepaint = true;
+	}
 
 	captureRenderState(): TuiMainScreenRenderState {
 		return {
@@ -248,6 +274,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		if (this.stopped) return;
 		const width = this.terminal.columns;
 		const height = this.terminal.rows;
+		const background = this.backgroundAnsi ?? "";
 		const widthChanged = this.previousWidth !== 0 && this.previousWidth !== width;
 		const heightChanged = this.previousHeight !== 0 && this.previousHeight !== height;
 		const previousBufferLength = this.previousHeight > 0 ? this.previousViewportTop + this.previousHeight : height;
@@ -280,7 +307,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			output.append("\x1b[?2026h"); // Begin synchronized output
 			if (clear) {
 				output.append(this.deleteKittyImages(this.previousKittyImageIds));
-				output.append("\x1b[2J\x1b[H\x1b[3J"); // Clear screen, home, then clear scrollback
+				output.append(`${background}\x1b[2J\x1b[H\x1b[3J`); // Clear screen, home, then clear scrollback
 			}
 			for (let i = 0; i < newLines.length; i++) {
 				if (i > 0) output.append("\r\n");
@@ -297,8 +324,10 @@ export class TuiMainScreen extends TuiBase implements TUI {
 					i += imageReservedRows - 1;
 					continue;
 				}
+				if (background) output.append(`${background}\x1b[2K`);
 				output.append(line);
 			}
+			if (background) output.append(`${background}\x1b[J`); // Erase down: paint rows below content
 			output.append("\x1b[?2026l"); // End synchronized output
 			output.flush();
 			this.cursorRow = Math.max(0, newLines.length - 1);
@@ -381,6 +410,15 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			}
 			lastChanged = newLines.length - 1;
 		}
+		if (this.forceViewportRepaint && newLines.length > 0) {
+			this.forceViewportRepaint = false;
+			// Rewrite the visible viewport so static rows (editor box, borders) pick up the new
+			// background without clearing scrollback. Clamping to prevViewportTop keeps the
+			// differential path valid; the viewport never starts above the previous viewport top.
+			firstChanged = Math.min(firstChanged === -1 ? prevViewportTop : firstChanged, prevViewportTop);
+			const viewportLast = Math.min(newLines.length - 1, prevViewportTop + height - 1);
+			lastChanged = Math.max(lastChanged === -1 ? 0 : lastChanged, viewportLast);
+		}
 		if (firstChanged !== -1) {
 			const expandedRange = this.expandChangedRangeForKittyImages(firstChanged, lastChanged, newLines);
 			firstChanged = expandedRange.firstChanged;
@@ -425,7 +463,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 					output.append(`\x1b[${clearStartOffset}B`);
 				}
 				for (let i = 0; i < extraLines; i++) {
-					output.append("\r\x1b[2K");
+					output.append(`\r${background}\x1b[2K`);
 					if (i < extraLines - 1) output.append("\x1b[1B");
 				}
 				const moveBack = Math.max(0, extraLines - 1 + clearStartOffset);
@@ -502,9 +540,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 					return;
 				}
 
-				output.append("\x1b[2K");
+				output.append(`${background}\x1b[2K`);
 				for (let row = 1; row < imageReservedRows; row++) {
-					output.append("\r\n\x1b[2K");
+					output.append(`\r\n${background}\x1b[2K`);
 				}
 				output.append(`\x1b[${imageReservedRows - 1}A`);
 				output.append(line);
@@ -513,7 +551,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				continue;
 			}
 
-			output.append("\x1b[2K"); // Clear current line
+			output.append(`${background}\x1b[2K`); // Clear current line
 			if (!isImage && visibleWidth(line) > width) {
 				// Log all lines to crash file for debugging
 				const crashLogPath = path.join(this.logDirectory ?? os.tmpdir(), "pi-tui-crash.log");
@@ -558,7 +596,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			}
 			const extraLines = this.previousLines.length - newLines.length;
 			for (let i = newLines.length; i < this.previousLines.length; i++) {
-				output.append("\r\n\x1b[2K");
+				output.append(`\r\n${background}\x1b[2K`);
 			}
 			// Move cursor back to end of new content
 			output.append(`\x1b[${extraLines}A`);

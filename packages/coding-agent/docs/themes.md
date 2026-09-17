@@ -161,13 +161,13 @@ vim ~/.pi/agent/themes/my-theme.json
 
 - `name` is required, must be unique, and must not contain `/`.
 - `vars` is optional. Define reusable colors here, then reference them in `colors`.
-- `colors` must define all 53 required tokens. `thinkingMax` and the two search highlight tokens are optional and use the fallbacks listed below.
+- `colors` must define all 53 required tokens. `thinkingMax`, `appBg`, and the two search highlight tokens are optional and use the fallbacks listed below.
 
 The `$schema` field enables editor auto-completion and validation.
 
 ## Color Tokens
 
-Every theme must define all 53 required color tokens. The optional tokens preserve compatibility with existing themes: `thinkingMax` falls back to `thinkingXhigh`, `searchMatchBg` falls back to `selectedBg`, and `searchMatchText` falls back to `text`. Other search matches use `searchMatchText` on `searchMatchBg` with an underline; the current match reverses that foreground/background pair and uses bold text.
+Every theme must define all 53 required color tokens. The optional tokens preserve compatibility with existing themes: `thinkingMax` falls back to `thinkingXhigh`, `searchMatchBg` falls back to `selectedBg`, `searchMatchText` falls back to `text`, and `appBg` falls back to the terminal default background. Other search matches use `searchMatchText` on `searchMatchBg` with an underline; the current match reverses that foreground/background pair and uses bold text.
 
 ### Core UI (13 colors)
 
@@ -187,10 +187,11 @@ Every theme must define all 53 required color tokens. The optional tokens preser
 | `scrollbarTrack` | Fullscreen scrollbar track foreground |
 | `scrollbarThumb` | Fullscreen scrollbar thumb foreground, shared by normal and expanded states |
 
-### Backgrounds & Content (11 required, 2 optional)
+### Backgrounds & Content (11 required, 3 optional)
 
 | Token | Purpose |
 |-------|---------|
+| `appBg` | Global TUI background; optional, falls back to the terminal default. Erased cells (cleared lines and screens) use this color on terminals that support background color erase |
 | `selectedBg` | Selected line background |
 | `searchMatchBg` | Transcript search match background and current-match text; optional, falls back to `selectedBg` |
 | `searchMatchText` | Transcript search match text and current-match background; optional, falls back to `text` |

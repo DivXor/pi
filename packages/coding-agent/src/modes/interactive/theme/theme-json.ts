@@ -35,7 +35,8 @@ const ThemeJsonSchema = Type.Object({
 		// Scrollbar (2 optional colors)
 		scrollbarTrack: Type.Optional(ColorValueSchema),
 		scrollbarThumb: Type.Optional(ColorValueSchema),
-		// Backgrounds & Content Text (11 required, 2 optional)
+		// Backgrounds & Content Text (11 required, 3 optional)
+		appBg: Type.Optional(ColorValueSchema),
 		selectedBg: ColorValueSchema,
 		searchMatchBg: Type.Optional(ColorValueSchema),
 		searchMatchText: Type.Optional(ColorValueSchema),

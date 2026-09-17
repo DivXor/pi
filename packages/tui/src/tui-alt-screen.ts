@@ -191,6 +191,8 @@ export interface TuiAltScreenOptions {
 	 * via an OSC 52 write.
 	 */
 	copySelection?: (text: string) => Promise<boolean | string>;
+	/** Initial theme background SGR emitted before screen and line erases. Undefined keeps the terminal default. */
+	backgroundAnsi?: string;
 }
 
 /** Alternate-screen TUI with a scrollable, application-owned viewport. */
@@ -273,6 +275,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		this.onRightClickPaste = options.onRightClickPaste;
 		this.copyOnSelect = options.copyOnSelect ?? true;
 		this.copySelection = options.copySelection;
+		this.backgroundAnsi = options.backgroundAnsi;
 		this.addInputListener((data) => this.handleViewportInput(data));
 	}
 
@@ -361,7 +364,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 				? ENABLE_BUTTON_MOTION_MOUSE
 				: ENABLE_ALL_MOTION_MOUSE;
 		this.terminal.write(
-			`${ENTER_ALT_SCREEN}${DISABLE_AUTOWRAP}${this.mouseEnabled ? mouseSequence : ""}\x1b[2J\x1b[H\x1b[?25l`,
+			`${ENTER_ALT_SCREEN}${DISABLE_AUTOWRAP}${this.mouseEnabled ? mouseSequence : ""}${this.backgroundAnsi ?? ""}\x1b[2J\x1b[H\x1b[?25l`,
 		);
 	}
 
@@ -392,9 +395,10 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 				(line) => (isImageLine(line) || visibleWidth(line) <= width ? line : sliceByColumn(line, 0, width, true)),
 			);
 			let buffer = `${BEGIN_SYNCHRONIZED_OUTPUT}${EXIT_ALT_SCREEN}${DISABLE_AUTOWRAP}`;
+			const background = this.backgroundAnsi ?? "";
 			for (let row = 0; row < this.lastDocument.length; row++) {
 				if (row > 0) buffer += "\r\n";
-				buffer += `\r\x1b[2K${this.lastDocument[row] ?? ""}`;
+				buffer += `\r${background}\x1b[2K${this.lastDocument[row] ?? ""}`;
 			}
 			buffer += `\x1b[0m${ENABLE_AUTOWRAP}\r\n\x1b[?25h${END_SYNCHRONIZED_OUTPUT}`;
 			this.terminal.write(buffer);
@@ -1659,6 +1663,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		if (this.stopped || !this.altScreenActive) return;
 		const width = Math.max(1, this.terminal.columns);
 		const height = Math.max(1, this.terminal.rows);
+		const background = this.backgroundAnsi ?? "";
 		const root = this.layoutRoot ?? this.implicitScrollView;
 		let nextLayout = renderLayoutFrame(root, width, height, () => this.requestRender());
 		if (this.refreshSearch(nextLayout)) {
@@ -1698,16 +1703,16 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 				this.imageProtocol === "kitty" && hadUploadedKittyImages
 					? deleteAllKittyPlacements()
 					: this.deleteKittyImages();
-			buffer += `${clearImages}\x1b[2J`;
+			buffer += `${clearImages}${background}\x1b[2J`;
 		} else if (imagesNeedRedraw) {
-			if (this.imageProtocol === "iterm2") buffer += "\x1b[2J";
+			if (this.imageProtocol === "iterm2") buffer += `${background}\x1b[2J`;
 			else if (this.imageProtocol === "kitty") buffer += deleteAllKittyPlacements();
 		}
 		buffer += preparedKittyScreen.evictedImageDeletion;
 
 		for (let row = 0; row < height; row++) {
 			if (!fullRedraw && !imagesNeedRedraw && screen[row] === this.previousScreen[row]) continue;
-			buffer += `\x1b[${row + 1};1H\x1b[2K${preparedKittyScreen.lines[row] ?? ""}`;
+			buffer += `\x1b[${row + 1};1H${background}\x1b[2K${preparedKittyScreen.lines[row] ?? ""}`;
 		}
 
 		if (cursorPos) {
@@ -1723,5 +1728,14 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		this.previousScreenWidth = width;
 		this.previousScreenHeight = height;
 		this.currentLayout = nextLayout;
+	}
+
+	override setBackgroundAnsi(ansi: string | undefined): void {
+		if (this.backgroundAnsi === ansi) return;
+		super.setBackgroundAnsi(ansi);
+		// Force a full repaint: unchanged rows would otherwise keep the old background.
+		this.previousScreen = [];
+		this.previousScreenWidth = 0;
+		this.previousScreenHeight = 0;
 	}
 }

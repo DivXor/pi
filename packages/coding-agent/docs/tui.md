@@ -462,7 +462,7 @@ renderResult(result, options, theme, context) {
 
 **Background colors** (`theme.bg(color, text)`):
 
-`selectedBg`, `searchMatchBg`, `userMessageBg`, `customMessageBg`, `toolPendingBg`, `toolSuccessBg`, `toolErrorBg`
+`appBg`, `selectedBg`, `searchMatchBg`, `userMessageBg`, `customMessageBg`, `toolPendingBg`, `toolSuccessBg`, `toolErrorBg`
 
 **For Markdown**, use `getMarkdownTheme()`:
 
